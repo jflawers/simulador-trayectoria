@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador de trayectoria · lanzador de tenis de mesa</title>
+<style>
+  :root{--bg:#0b1220;--panel:#121c31;--panel2:#0e1728;--line:#22314f;--txt:#e7edf7;--mut:#8fa3c0;
+        --acc:#4da3ff;--acc2:#7c5cff;--ok:#2ecc71;--bad:#ff6b6b;--warn:#f5a623;color-scheme:dark}
+  *{box-sizing:border-box} html,body{margin:0;background:radial-gradient(1200px 600px at 10% -10%,#16244a 0%,var(--bg) 60%) fixed;color:var(--txt);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  header{padding:22px 24px 6px} h1{margin:0;font-size:22px;letter-spacing:.2px} header p{margin:6px 0 0;color:var(--mut)}
+  main{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:16px;padding:16px 24px 28px;max-width:1280px;margin:0 auto}
+  @media(max-width:900px){main{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--mut);margin:0 0 12px}
+  label{display:block;color:var(--mut);font-size:13px;margin:12px 0 6px}
+  .row{display:flex;gap:10px;align-items:center}
+  input[type=range]{flex:1;accent-color:var(--acc)}
+  input[type=number],select{width:112px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:#0a1324;color:var(--txt);font-size:15px}
+  select{width:100%}
+  .unit{color:var(--mut);font-size:12px;margin-left:4px}
+  .btn{padding:9px 14px;border-radius:10px;border:0;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;font-weight:600;cursor:pointer}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  @media(max-width:600px){.grid{grid-template-columns:1fr}}
+  .kpi{background:#0a1324;border:1px solid var(--line);border-radius:14px;padding:12px}
+  .kpi .t{color:var(--mut);font-size:12px}
+  .kpi .v{font-size:26px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+  .kpi .s{color:var(--mut);font-size:12px;margin-top:2px}
+  .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+  svg{width:100%;height:auto;display:block;background:#0a1324;border:1px solid var(--line);border-radius:14px}
+  table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+  th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right} th:first-child,td:first-child{text-align:left}
+  th{color:var(--mut);font-weight:600} tr.sel td{background:rgba(77,163,255,.12)}
+  .note{color:var(--mut);font-size:12px;line-height:1.5;margin-top:10px}
+  .pill{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:10px}
+  footer{color:var(--mut);font-size:12px;text-align:center;padding:0 24px 24px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏓 Simulador de trayectoria</h1>
+  <p>Lanzador de tenis de mesa · RPM de los rodillos, ángulo del tubo y altura de salida → distancia, velocidad, efecto y rebote.</p>
+</header>
+<main>
+  <section class="card" id="panel">
+    <h2>Configuración</h2>
+    <label>Preset de calibración</label>
+    <select id="preset"></select>
+
+    <label>RPM backspin (rodillo que gira hacia atrás)</label>
+    <div class="row"><input type="range" id="bs" min="0" max="6000" step="50"><input type="number" id="bs-n" min="0" max="6000" step="50"></div>
+    <label>RPM topspin (rodillo que gira hacia adelante)</label>
+    <div class="row"><input type="range" id="ts" min="0" max="6000" step="50"><input type="number" id="ts-n" min="0" max="6000" step="50"></div>
+    <label>Ángulo del tubo <span class="unit">grados sobre la horizontal</span></label>
+    <div class="row"><input type="range" id="ang" min="0" max="60" step="0.5"><input type="number" id="ang-n" min="0" max="60" step="0.5"></div>
+
+    <label>Altura de la salida <span class="unit">m desde el suelo</span></label>
+    <input type="number" id="h0" min="0.5" max="2" step="0.01" value="1.02" style="width:100%">
+    <label>Distancia del borde de la mesa al lanzador <span class="unit">m</span></label>
+    <input type="number" id="d0" min="0" max="3" step="0.05" value="1.1" style="width:100%">
+    <label>Altura de la mesa <span class="unit">m</span></label>
+    <input type="number" id="mesa" min="0.5" max="1" step="0.01" value="0.81" style="width:100%">
+    <label>Velocidad medida de la bola <span class="unit">m/s, opcional: calibra la salida</span></label>
+    <input type="number" id="vmed" min="0" max="12" step="0.1" placeholder="ej. 6.0" style="width:100%">
+    <div class="row" style="margin-top:14px"><button class="btn" id="reset">Restablecer</button><button class="btn ghost" id="copiar">Copiar resultado</button></div>
+    <p class="note">La velocidad de salida sale del promedio de las velocidades de superficie de los dos rodillos, con un factor calibrado (0.666) con siete configuraciones medidas (error medio 0.05 m/s).</p>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div class="card">
+      <div class="toolbar"><h2 style="margin:0">Resultados</h2><span id="estado" class="pill"></span></div>
+      <div class="grid">
+        <div class="kpi"><div class="t">Velocidad de la bola</div><div class="v" id="k-v">–</div><div class="s">m/s</div></div>
+        <div class="kpi"><div class="t">Efecto</div><div class="v" id="k-ef">–</div><div class="s" id="k-efd">–</div></div>
+        <div class="kpi"><div class="t">Distancia de caída</div><div class="v" id="k-x">–</div><div class="s" id="k-xm">–</div></div>
+        <div class="kpi"><div class="t">Altura de rebote</div><div class="v" id="k-reb">–</div><div class="s">cm sobre la mesa (centro de la bola)</div></div>
+        <div class="kpi"><div class="t">Altura máxima</div><div class="v" id="k-ap">–</div><div class="s">cm sobre la salida</div></div>
+        <div class="kpi"><div class="t">Ángulo de bajada</div><div class="v" id="k-desc">–</div><div class="s">grados al caer</div></div>
+        <div class="kpi"><div class="t">Rotación estimada</div><div class="v" id="k-rps">–</div><div class="s">rev/s (estimación no calibrada)</div></div>
+        <div class="kpi"><div class="t">Tiempo de vuelo</div><div class="v" id="k-t">–</div><div class="s">s hasta la mesa</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar"><h2 style="margin:0">Trayectoria (vista lateral)</h2><span class="pill" id="leyenda"></span></div>
+      <svg id="plot" viewBox="0 0 900 360" role="img" aria-label="Trayectoria de la bola"></svg>
+    </div>
+
+    <div class="card">
+      <h2>Distancia de caída según el ángulo</h2>
+      <svg id="curva" viewBox="0 0 900 260" role="img" aria-label="Distancia de caída frente al ángulo"></svg>
+    </div>
+
+    <div class="card">
+      <h2>Comparar ángulos (con las RPM actuales)</h2>
+      <table id="tab"><thead><tr><th>Ángulo</th><th>Vel. (m/s)</th><th>Caída (cm)</th><th>Altura máx. (cm)</th><th>Bajada (°)</th><th>Rebote (cm)</th><th>En mesa</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+</main>
+<footer>Modelo físico con arrastre aerodinámico y efecto Magnus. Resultados orientativos: ver supuestos en el README.</footer>
+
+<script>
+// ===================== MODELO FÍSICO =====================
+const R_ROD = 0.0346, D_BOLA = 0.040, R_BOLA = 0.020, M_BOLA = 0.0027, RHO = 1.2, CD = 0.40, G = 9.81;
+const A_BOLA = Math.PI * R_BOLA * R_BOLA;
+const E_REB = 0.90, FR_REB = 0.10, CL_FACT = 0.20, EFIC = 0.15, R_CENTRO = 0.020;
+const KV_DEFAULT = 0.666;
+let KV = KV_DEFAULT;
+const superficie = rpm => rpm * 2 * Math.PI / 60 * R_ROD;
+const velocidadSalida = (bs, ts) => KV * (superficie(bs) + superficie(ts)) / 2;
+
+// Simula la bola desde la salida hasta el contacto con la mesa.
+// Devuelve la trayectoria, el punto de caída, la velocidad y el rebote.
+function simular(bs, ts, angDeg, h0, mesaAlt) {
+  const vbs = superficie(bs), vts = superficie(ts);
+  const v0 = velocidadSalida(bs, ts);
+  const diff = vbs - vts;
+  const sgn = diff >= 0 ? 1 : -1;
+  const tipo = Math.abs(diff) < 0.5 ? 'sin efecto' : (diff > 0 ? 'backspin' : 'topspin');
+  const omega = EFIC * Math.abs(diff) / R_BOLA;      // rad/s, estimación
+  const th = angDeg * Math.PI / 180;
+  let x = 0, y = h0, vx = v0 * Math.cos(th), vy = v0 * Math.sin(th), t = 0, ymax = h0;
+  const traj = [[0, h0]];
+  const yl = mesaAlt + R_CENTRO;
+  const dt = 2e-4;
+  let landed = false, xl = 0, vxl = 0, vyl = 0, tl = 0;
+  while (t < 4 && x < 6) {
+    const v = Math.hypot(vx, vy);
+    const S = omega * R_BOLA / Math.max(v, 0.1);
+    const CL = Math.min(CL_FACT * S, 0.3);
+    const aD = 0.5 * RHO * CD * A_BOLA * v / M_BOLA;
+    const aM = 0.5 * RHO * A_BOLA * CL * v * v / M_BOLA;
+    const nx = -vy / v, ny = vx / v;
+    const ax = -aD * vx + sgn * aM * nx;
+    const ay = -G - aD * vy + sgn * aM * ny;
+    const vxN = vx + ax * dt, vyN = vy + ay * dt;
+    const xN = x + vxN * dt, yN = y + vyN * dt;
+    t += dt;
+    if (yN > ymax) ymax = yN;
+    if (vyN < 0 && yN <= yl) {
+      const f = (y - yl) / (y - yN + 1e-12);
+      xl = x + (xN - x) * f; vxl = vx; vyl = vy; tl = t - dt + dt * f; landed = true; break;
+    }
+    x = xN; y = yN; vx = vxN; vy = vyN;
+    traj.push([x, y]);
+  }
+  const res = { v0, tipo, rps: omega / (2 * Math.PI), traj, ymax, landed, x: landed ? xl : x, t: tl || t };
+  if (landed) {
+    const vyAfter = -E_REB * vyl, vxAfter = vxl * (1 - FR_REB);
+    res.rebote = vyAfter * vyAfter / (2 * G);
+    res.vyAfter = vyAfter; res.vxAfter = vxAfter;
+    res.desc = Math.atan2(-vyl, vxl) * 180 / Math.PI;
+    // trayectoria de rebote (parabola desde el punto de caída)
+    const reb = [[xl, yl]];
+    let rx = xl, ry = yl, rvx = vxAfter, rvy = vyAfter;
+    for (let k = 0; k < 4000 && ry >= yl - 1e-6; k++) {
+      rvy -= G * dt; rx += rvx * dt; ry += rvy * dt; reb.push([rx, ry]);
+      if (ry < yl && k > 2) break;
+    }
+    res.reboteTraj = reb;
+  }
+  return res;
+}
+
+// ===================== PRESETS =====================
+const PRESETS = [
+  ['C01 · Corte suave (referencia)', 4250, 700, 15],
+  ['C02 · Corte fuerte', 4500, 700, 15],
+  ['C03 · Corte intermedio', 3500, 1000, 15],
+  ['C04 · Corte lento', 2500, 1500, 15],
+  ['C05 · Saque corto con backspin', 2500, 800, 15],
+  ['C06 · Bola muerta suave', 2000, 2000, 15],
+  ['C07 · Bola muerta fuerte', 2750, 2750, 15],
+  ['C08 · Bola muerta rápida (fuera de mesa)', 3500, 3500, 15],
+  ['C09 · Liftado', 1000, 3500, 20],
+  ['C10 · Topspin suave', 700, 4250, 15],
+  ['C11 · Topspin fuerte', 700, 4500, 15],
+  ['C12 · Topspin medio', 1000, 3000, 15],
+  ['C13 · Lob suave (50°)', 700, 2500, 50],
+  ['C14 · Lob fuerte (60°)', 700, 3500, 60]
+];
+
+// ===================== INTERFAZ =====================
+const $ = id => document.getElementById(id);
+const fmt = (v, d = 1) => (v === null || v === undefined || !isFinite(v)) ? '–' : v.toFixed(d);
+
+function leer() {
+  return {
+    bs: +$('bs-n').value, ts: +$('ts-n').value, ang: +$('ang-n').value,
+    h0: +$('h0').value, d0: +$('d0').value, mesa: +$('mesa').value
+  };
+}
+function escribir(p) {
+  $('bs').value = $('bs-n').value = p.bs;
+  $('ts').value = $('ts-n').value = p.ts;
+  $('ang').value = $('ang-n').value = p.ang;
+}
+
+function dibujarTrayectoria(r, p) {
+  const svg = $('plot'), W = 900, H = 360, mx = Math.max(3.2, p.d0 + 1.4), my = Math.max(1.4, p.h0 + 0.5);
+  const X = x => 50 + x / mx * (W - 70), Y = y => H - 40 - y / my * (H - 70);
+  let s = '<defs><linearGradient id="gm" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2a6f4a"/><stop offset="1" stop-color="#1b4a33"/></linearGradient>' +
+          '<linearGradient id="gb" x1="0" x2="1"><stop offset="0" stop-color="#4da3ff"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs>';
+  // rejilla
+  for (let g = 0; g <= mx; g += 0.5) s += `<line x1="${X(g)}" y1="${Y(0)}" x2="${X(g)}" y2="${Y(my)}" stroke="#1a2740"/><text x="${X(g)}" y="${H - 18}" fill="#8fa3c0" font-size="11" text-anchor="middle">${g.toFixed(1)} m</text>`;
+  for (let g = 0; g <= my; g += 0.5) s += `<line x1="50" y1="${Y(g)}" x2="${W - 20}" y2="${Y(g)}" stroke="#1a2740"/><text x="44" y="${Y(g) + 4}" fill="#8fa3c0" font-size="11" text-anchor="end">${g.toFixed(1)}</text>`;
+  s += `<line x1="50" y1="${Y(0)}" x2="${W - 20}" y2="${Y(0)}" stroke="#3a4d70" stroke-width="2"/>`;
+  // mesa
+  const xm0 = p.d0, xm1 = p.d0 + 1.2;
+  s += `<rect x="${X(xm0)}" y="${Y(p.mesa)}" width="${X(xm1) - X(xm0)}" height="${Y(0) - Y(p.mesa)}" rx="4" fill="url(#gm)" opacity=".85"/>`;
+  s += `<line x1="${X(xm0)}" y1="${Y(p.mesa)}" x2="${X(xm1)}" y2="${Y(p.mesa)}" stroke="#7bd99a" stroke-width="2"/>`;
+  s += `<text x="${X(xm0) + 6}" y="${Y(p.mesa) - 8}" fill="#7bd99a" font-size="12">mesa · borde a ${p.d0.toFixed(2)} m</text>`;
+  // lanzador
+  s += `<circle cx="${X(0)}" cy="${Y(p.h0)}" r="7" fill="#f5a623"/><text x="${X(0) + 12}" y="${Y(p.h0) - 10}" fill="#f5a623" font-size="12">salida ${p.h0.toFixed(2)} m · ${p.ang}°</text>`;
+  // trayectoria
+  const pts = r.traj.filter(q => q[0] <= mx).map(q => `${X(q[0]).toFixed(1)},${Y(q[1]).toFixed(1)}`).join(' ');
+  s += `<polyline points="${pts}" fill="none" stroke="url(#gb)" stroke-width="3.5" stroke-linecap="round"/>`;
+  if (r.landed && r.reboteTraj) {
+    const rb = r.reboteTraj.filter(q => q[0] <= mx).map(q => `${X(q[0]).toFixed(1)},${Y(q[1]).toFixed(1)}`).join(' ');
+    s += `<polyline points="${rb}" fill="none" stroke="#7bd99a" stroke-width="2.5" stroke-dasharray="6 5"/>`;
+    s += `<circle cx="${X(r.x)}" cy="${Y(p.mesa + R_CENTRO)}" r="6" fill="#2ecc71" stroke="#fff" stroke-width="1.5"/>`;
+    s += `<text x="${X(r.x)}" y="${Y(p.mesa) - 14}" fill="#fff" font-size="12" text-anchor="middle">caída ${(r.x * 100).toFixed(0)} cm</text>`;
+    if (r.rebote !== undefined) s += `<text x="${X(r.x)}" y="${Y(p.mesa + r.rebote + R_CENTRO) - 8}" fill="#7bd99a" font-size="11" text-anchor="middle">rebote ${((r.rebote + R_CENTRO) * 100).toFixed(1)} cm</text>`;
+  }
+  svg.innerHTML = s;
+  $('leyenda').textContent = r.landed ? (p.d0 <= r.x && r.x <= p.d0 + 1.2 ? 'cae sobre la mesa' : 'cae fuera de la mesa') : 'no llega a la mesa';
+}
+
+function dibujarCurva(p) {
+  const svg = $('curva'), W = 900, H = 260, a0 = 0, a1 = 60;
+  const datos = [];
+  for (let a = a0; a <= a1; a += 2) {
+    const r = simular(p.bs, p.ts, a, p.h0, p.mesa);
+    datos.push([a, r.landed ? r.x : null]);
+  }
+  const vals = datos.map(d => d[1]).filter(v => v !== null);
+  const ymax = Math.max(3, ...vals) * 1.05;
+  const X = a => 50 + (a - a0) / (a1 - a0) * (W - 70), Y = v => H - 34 - v / ymax * (H - 60);
+  let s = '';
+  // banda de la mesa
+  s += `<rect x="50" y="${Y(p.d0 + 1.2)}" width="${W - 70}" height="${Y(p.d0) - Y(p.d0 + 1.2)}" fill="#1f5f3a" opacity=".35"/>`;
+  s += `<text x="${W - 24}" y="${Y(p.d0 + 0.6) + 4}" fill="#7bd99a" font-size="12" text-anchor="end">banda de la mesa</text>`;
+  for (let v = 0; v <= ymax; v += 0.5) s += `<line x1="50" y1="${Y(v)}" x2="${W - 20}" y2="${Y(v)}" stroke="#1a2740"/><text x="44" y="${Y(v) + 4}" fill="#8fa3c0" font-size="11" text-anchor="end">${v.toFixed(1)} m</text>`;
+  for (let a = 0; a <= a1; a += 10) s += `<text x="${X(a)}" y="${H - 12}" fill="#8fa3c0" font-size="11" text-anchor="middle">${a}°</text>`;
+  let d = '';
+  datos.forEach(([a, v], i) => { if (v !== null) d += (d ? ' L' : 'M') + X(a).toFixed(1) + ',' + Y(v).toFixed(1); });
+  s += `<path d="${d}" fill="none" stroke="url(#gb)" stroke-width="3"/>`;
+  s += `<line x1="${X(p.ang)}" y1="${Y(0)}" x2="${X(p.ang)}" y2="${Y(ymax)}" stroke="#f5a623" stroke-dasharray="4 4"/>`;
+  svg.innerHTML = s;
+}
+
+function tabla(p) {
+  const filas = [];
+  for (const a of [5, 10, 15, 20, 25, 30, 40, 50, 60]) {
+    const r = simular(p.bs, p.ts, a, p.h0, p.mesa);
+    const enMesa = r.landed && r.x >= p.d0 && r.x <= p.d0 + 1.2;
+    const sel = Math.abs(a - p.ang) < 0.01 ? ' class="sel"' : '';
+    filas.push(`<tr${sel}><td>${a}°</td><td>${fmt(r.v0, 2)}</td><td>${r.landed ? fmt(r.x * 100, 0) : '–'}</td><td>${fmt((r.ymax - p.h0) * 100, 0)}</td><td>${r.landed ? fmt(r.desc, 0) : '–'}</td><td>${r.landed ? fmt((r.rebote + R_CENTRO) * 100, 1) : '–'}</td><td class="${enMesa ? 'ok' : 'bad'}">${enMesa ? 'sí' : 'no'}</td></tr>`);
+  }
+  $('tab').querySelector('tbody').innerHTML = filas.join('');
+}
+
+function actualizar() {
+  const p = leer();
+  const r = simular(p.bs, p.ts, p.ang, p.h0, p.mesa);
+  $('k-v').textContent = fmt(r.v0, 2);
+  $('k-ef').textContent = r.tipo;
+  $('k-efd').textContent = `diferencia de superficie ${fmt(Math.abs(superficie(p.bs) - superficie(p.ts)), 1)} m/s`;
+  $('k-rps').textContent = fmt(r.rps, 0);
+  $('k-ap').textContent = fmt((r.ymax - p.h0) * 100, 0);
+  $('k-t').textContent = fmt(r.t, 2);
+  if (r.landed) {
+    const enMesa = r.x >= p.d0 && r.x <= p.d0 + 1.2;
+    $('k-x').textContent = fmt(r.x * 100, 0) + ' cm';
+    $('k-xm').innerHTML = enMesa ? '<span class="ok">dentro de la mesa</span>' : `<span class="bad">${r.x < p.d0 ? 'antes de la mesa' : 'fuera de la mesa'}</span>`;
+    $('k-desc').textContent = fmt(r.desc, 0) + '°';
+    $('k-reb').textContent = fmt((r.rebote + R_CENTRO) * 100, 1);
+    $('estado').textContent = enMesa ? 'sobre la mesa' : 'fuera de la mesa';
+    $('estado').className = 'pill ' + (enMesa ? 'ok' : 'bad');
+  } else {
+    $('k-x').textContent = 'no cae'; $('k-xm').innerHTML = '<span class="bad">no llega a la mesa</span>';
+    $('k-desc').textContent = '–'; $('k-reb').textContent = '–';
+    $('estado').textContent = 'sin caída'; $('estado').className = 'pill bad';
+  }
+  dibujarTrayectoria(r, p);
+  dibujarCurva(p);
+  tabla(p);
+}
+
+// ---- eventos ----
+PRESETS.forEach((q, i) => { const o = document.createElement('option'); o.value = i; o.textContent = q[0]; $('preset').appendChild(o); });
+function cargarPreset(i) {
+  const q = PRESETS[i];
+  $('bs').value = $('bs-n').value = q[1];
+  $('ts').value = $('ts-n').value = q[2];
+  $('ang').value = $('ang-n').value = q[3];
+  actualizar();
+}
+$('preset').onchange = () => cargarPreset(+$('preset').value);
+[['bs', 'bs-n'], ['ts', 'ts-n'], ['ang', 'ang-n']].forEach(([a, b]) => {
+  $(a).oninput = () => { $(b).value = $(a).value; actualizar(); };
+  $(b).oninput = () => { $(a).value = $(b).value; actualizar(); };
+});
+['h0', 'd0', 'mesa'].forEach(id => $(id).oninput = actualizar);
+$('vmed').oninput = () => {
+  const v = +$('vmed').value, p = leer();
+  const base = (superficie(p.bs) + superficie(p.ts)) / 2;
+  if (v > 0 && base > 0) KV = v / base; else KV = KV_DEFAULT;
+  actualizar();
+};
+$('reset').onclick = () => { KV = KV_DEFAULT; $('vmed').value = ''; $('preset').value = 0; cargarPreset(0); };
+$('copiar').onclick = () => {
+  const p = leer(), r = simular(p.bs, p.ts, p.ang, p.h0, p.mesa);
+  const txt = `Velocidad ${fmt(r.v0, 2)} m/s · efecto ${r.tipo} · caída ${r.landed ? fmt(r.x * 100, 0) + ' cm' : 'no cae'} · rebote ${r.landed ? fmt((r.rebote + R_CENTRO) * 100, 1) + ' cm' : '–'}`;
+  navigator.clipboard && navigator.clipboard.writeText(txt);
+  $('copiar').textContent = 'Copiado ✓'; setTimeout(() => $('copiar').textContent = 'Copiar resultado', 1200);
+};
+cargarPreset(0);
+</script>
+</body>
+</html>
